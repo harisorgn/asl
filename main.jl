@@ -1,14 +1,41 @@
 using Distributions
 using Random
 using Statistics
-using JLD
-using NLopt
+#using JLD
+#using NLopt
 
 include("agents.jl")
 include("environments.jl")
 include("auxiliary.jl")
-include("opt.jl")
-include("plot.jl")
+
+function obj(x::Vector, grad::Vector, env_v, obj_param_v, offline_learning, policy)
+
+	obj = 0.0
+
+	for env in env_v
+
+		n_bias_steps = Int(floor(0.5*env.reward_process.n_steps))
+		bias_buffer_length = Int(floor(0.2*env.reward_process.n_steps))
+
+		η_offline = x[1]
+		decay_offline = obj_param_v[1]
+
+		η_r = x[2]
+		decay_r = obj_param_v[2]
+
+		ε = x[3]
+
+		agent = delta_agent(env.reward_process.n_bandits, η_r, decay_r,
+							offline_learning(n_bias_steps, env.reward_process.n_bandits, 
+											bias_buffer_length, η_offline, decay_offline), 
+							policy(ε))
+
+		obj += run_environment!(env, agent)
+
+	end
+
+	return obj
+end
 
 function main()
 	
@@ -26,111 +53,16 @@ function main()
 
 	γ_v = [0.01, 0.01]
 
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
+	env = bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
+							initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
+							MersenneTwister())
 
-	run_opt(env_v)	
+	agent = delta_agent(n_bandits, 0.1, 0.01, 
+						offline_bias(20, n_bandits, 10, 0.01, 0.01),
+						ε_greedy_policy(0.1))
 	
-	γ_v = [0.2, 0.2]
+	println(run_environment!(env, agent))
 
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
-
-	run_opt(env_v)	
-
-	γ_v = [0.5, 0.5]
-
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
-
-	run_opt(env_v)	
-	
-
-	γ_v = [0.8, 0.8]
-
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
-
-	run_opt(env_v)	
-
-
-	γ_v = [1.0, 1.0]
-
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
-
-	run_opt(env_v)
-
-	#=
-	env_v = repeat([bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										no_out_process(n_steps, n_bandits, n_sessions), 
-										MersenneTwister()),
-					bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_distribution_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister()),
-					bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_frequency_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister()),
-					bandit_environment(OU_process(n_warmup_steps, n_steps, n_bandits, n_sessions, r_0_v, γ_v, μ_v, σ_v),
-										initialise_delay_out_process(n_steps, n_bandits, n_sessions, r_out), 
-										MersenneTwister())],
-					100)
-	=#
-
-	#=
-	dir = "./"
-	file_v = filter(x -> occursin(".jld", x), readdir(dir))
-
-	file_v = [string(dir, file) for file in file_v]
-
-	
-	plot_performance(file_v)
-
-	agent_keys_v = ["bias_agent", "Q_agent", "no_offline_agent"]
-
-	for file in file_v
-
-		d = load(file)
-		
-		println("-------------------")
-		println("γ = ", d["env_v"][1].reward_process.γ_v[1])
-
-		for key in agent_keys_v
-
-			agent = d[key]
-
-			println(key)
-			println("η_r = ", agent.η, "   ", "η_off = ", agent.offline.η, "   ", "ε = ", agent.policy.ε)
-			println("-------------------")
-		end
-	end
-	=#
-
-	#=
-	for file in file_v
-
-		env_v = load(file, "env_v")[1:2]
-
-		bias_agent = load(file, "bias_agent")
-		Q_agent = load(file, "Q_agent")
-		no_offline_agent = load(file, "no_offline_agent")
-
-		for agent in [bias_agent, Q_agent, no_offline_agent]
-
-			plot_reward_split(env_v, agent, 1 : 10 ; save_plot = true)
-		end
-	end
-	=#
 end	
 
 main()

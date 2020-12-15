@@ -238,24 +238,38 @@ end
 
 function run_environment!(env::bandit_environment, agent::abstract_bandit_agent)
 
+	available_action_v = 1 : env.reward_process.n_bandits
+
+	r_accum = 0.0
+
 	for session = 1 : env.reward_process.n_sessions
 
-		r = 0.0
+		agent.latest_action = available_action_v[agent.policy(zeros(agent.n_actions))]
 
-		for cstep = 1 : env.reward_process.n_steps
+		r = env(agent.latest_action, 1, session)
 
-			action = agent(r, cstep, session, 1:env.reward_process.n_bandits)
+		r_accum += r
+
+		for cstep = 2 : env.reward_process.n_steps
+
+			action = agent(r, available_action_v)
 
 			r = env(action, cstep, session)
+
+			r_accum += r
 		end
 
-		agent.offline(session)
+		agent.offline()
 	end	
 
-	reset_environment!(env)
+	#reset_environment!(env)
+
+	return r_accum
 end
 
 function run_environment!(env::bandit_environment, agent::abstract_optimal_bandit_agent)
+
+	available_action_v = 1 : env.reward_process.n_bandits
 
 	for session = 1 : env.reward_process.n_sessions
 		
@@ -263,8 +277,8 @@ function run_environment!(env::bandit_environment, agent::abstract_optimal_bandi
 
 		for cstep = 1 : env.reward_process.n_steps
 
-			action = agent(r, env.reward_process.r_m[cstep, :, session] + env.out_process.r_m[cstep, :, session], 
-							cstep, session, 1:env.n_bandits)
+			action = agent(env.reward_process.r_m[cstep, :, session] + env.out_process.r_m[cstep, :, session], 
+							available_action_v)
 
 			r = env(action, cstep, session)
 		end

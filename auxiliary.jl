@@ -1,17 +1,7 @@
 
-function get_optimal_agent(env::bandit_environment{T, Y}) where {T <: abstract_reward_process, Y <: Union{no_out_process, distribution_out_process, delay_out_process, test_out_process}}
+function get_optimal_agent(env::bandit_environment{T, Y}) where {T <: abstract_reward_process, Y <: abstract_out_process}
 
-	return optimal_bandit_distribution_out_agent(env.reward_process.n_steps, env.reward_process.n_sessions)
-end
-
-function get_optimal_agent(env::bandit_environment{T, frequency_out_process}) where T <: abstract_reward_process
-
-	return optimal_bandit_frequency_outlier_agent(env.reward_process.n_steps, 
-												env.reward_process.n_sessions, 
-												env.out_process.r_out, 
-												env.out_process.p_out_max, 
-												env.out_process.η_p_out, 
-												env.out_process.decay_p_out)
+	return optimal_bandit_agent()
 end
 
 OU_distr(x, t, γ, σ; t_0  = 0.0, x_0 = 0.0) = sqrt(γ / (2.0 * pi * (σ^2.0 / 2.0) * (1.0 - exp(-2.0 * γ * (t - t_0))))) * 
